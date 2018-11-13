@@ -1,6 +1,6 @@
-	1. Creare il certificato per il servizio kube-apiserver:
-  
-	kubernetes-csr.json
+Creare il certificato per il servizio kube-apiserver:
+
+kubernetes-csr.json
 {
   "CN": "kubernetes",
   "key": {
@@ -15,5 +15,5 @@
   ]
 }
 
-	Generate the Kubernetes API Server certificate and private key:
-	cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=config.json -hostname=127.0.0.1,172.29.21.10,10.10.0.1,kubernetes.default -profile=kubernetes kubeapicsr.json | cfssljson -bare kubernetes
+Generate the Kubernetes API Server certificate and private key:
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=config.json -hostname=127.0.0.1,172.29.21.10,10.10.0.1,kubernetes.default -profile=kubernetes kubeapicsr.json | cfssljson -bare kubernetes
