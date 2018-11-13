@@ -77,7 +77,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 	
-5. Kube scheduler setup: kube-scheduler.service[Unit]
+5. Kube scheduler setup: kube-scheduler.service
+[Unit]
 Description=Kubernetes Scheduler
 Documentation=https://github.com/kubernetes/kubernetes
 
@@ -92,7 +93,7 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 
-6. Starta i servizi e controlla:
+6. start and check services:
 sudo mv kube-apiserver.service kube-scheduler.service kube-controller-manager.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
