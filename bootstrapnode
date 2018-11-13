@@ -1,0 +1,95 @@
+1. Download kubectl binary from 
+curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.11.1/bin/linux/amd64/kubectl
+https://storage.googleapis.com/kubernetes-release/release/v1.11.1/bin/linux/amd64/kubelet
+https://storage.googleapis.com/kubernetes-release/release/v1.11.1/bin/linux/amd64/kube-proxy
+
+chmod +x kubectl kubelet kube-proxy
+sudo mv kubectl /usr/local/bin/kubectl
+
+2. Download and install basic CNI plugins.
+sudo mkdir -p /opt/cni/bin /etc/cni/net.d
+wget -q --show-progress --https-only --timestamping  https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
+sudo tar xvf cni-plugins-amd64-v0.7.1.tgz -C /opt/cni/bin
+	
+3. Host preparation
+sudo apt install socat conntrack
+modify /etc/sysctl.conf:
+net.ipv4.ip_forward=1
+sysctl -p /etc/sysctl.conf
+Sudo swapoff -a // comment swap mount on fstab
+Sudo yum install docker
+	
+	
+4. Generate a token for kube-bootstrapper and add it to your token.csv
+head -c 16 /dev/urandom | od -An -t x | tr -d ' '
+cat token.csv
+bcac9b9b235e554da06e111a0ece1257,admin,10000,admin
+fc6a1f2d64ad4a8c82d9feaabf1f8d62,kubelet-boostrap,10001,"system:node-bootstrapper"
+Put the token.csv file in /var/lib/kubernetes/token.csv on the kube-apiserver
+Add the --token-auth-file=FILENAME flag to the kube-apiserver startup service.
+	
+	
+5. Generate a kubelet kubeconfig file for each of our worker nodes:
+  
+kubectl config set-cluster kubernetes --certificate-authority=/var/lib/kubernetes/ca.pem --embed-certs=true --server=https://172.29.21.10:6443 --kubeconfig=bootstrap.kubeconfigkubectl config set-credentials kubelet-bootstrap --token="fc6a1f2d64ad4a8c82d9feaabf1f8d62" --kubeconfig=bootstrap.kubeconfig
+kubectl config set-context default --cluster=kubernetes --user=kubelet-bootstrap --kubeconfig=bootstrap.kubeconfig 
+kubectl config use-context default --kubeconfig=bootstrap.kubeconfig
+Move the bootstrap.kubeconfig file in var/lib/kubernetes/bootstrap.kubeconfig.
+	
+6. Generate kubelet service systemd configuration: kubelet.service
+
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=docker.service
+Requires=docker.service
+	
+[Service]
+WorkingDirectory=/var/lib/kubernetes
+ExecStart=/usr/local/bin/kubelet \\
+  --bootstrap-kubeconfig=/var/lib/kubernetes/bootstrap.kubeconfig \\
+  --cert-dir=/var/lib/kubernetes \\
+  --kubeconfig=/var/lib/kubernetes/kubeconfig \\
+ --cgroup-driver=systemd
+  --hostname-override=worker1 \\
+  --pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest \\
+  --allow-privileged=true \\
+  --alsologtostderr=true \\
+  --logtostderr=false \\
+  --log-dir=/var/log/kubernetes \\
+  --v=2
+Restart=on-failure
+RestartSec=5
+	
+[Install]
+WantedBy=multi-user.target
+
+7. Setup rbac authorization bindings for node bootstrapping:
+kubectl create clusterrolebinding kubelet-bootstrap --clusterrole=system:node-bootstrapper --user=kubelet-bootstrap
+kubectl create clusterrolebinding node-client-auto-approve-csr --clusterrole=system:certificates.k8s.io:certificatesigningrequests:nodeclient --group=system:node-bootstrapper
+kubectl create clusterrolebinding node-client-auto-renew-crt --clusterrole=system:certificates.k8s.io:certificatesigningrequests:selfnodeclient --group=system:nodes
+
+8. Generate a kube-proxy config file for the kube-proxy service:
+
+kubectl config set-cluster kubernetes --certificate-authority=ca.pem --embed-certs=true --server=https://172.29.21.10:6443 --kubeconfig=kube-proxy.kubeconfig
+kubectl config set-credentials kube-proxy  --client-certificate=kube-proxy.pem --client-key=kube-proxy-key.pem --embed-certs=true --kubeconfig=kube-proxy.kubeconfig
+kubectl config set-context default --cluster=kubernetes --user=kube-proxy --kubeconfig=kube-proxy.kubeconfig
+kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+
+sudo mv kube-proxy.kubeconfig /var/lib/kubernetes/kube-proxy.kubeconfig
+
+9. Generate the kube-proxy systemd unit file:
+
+kube-proxy.service 
+
+[Unit]
+Description=Kubernetes Kube Proxy 
+Documentation=https://github.com/kubernetes/kubernetes 
+
+[Service] 
+ExecStart=/usr/local/bin/kube-proxy --cluster-cidr=10.16.0.0/16 --kubeconfig=/var/lib/kubernetes/kube-proxy.kubeconfig --proxy-mode=iptables --v=2
+Restart=on-failure
+RestartSec=5 
+
+[Install]
+WantedBy=multi-user.target
