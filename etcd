@@ -1,0 +1,72 @@
+Download i binari
+wget -q --show-progress "https://github.com/coreos/etcd/releases/download/v3.3.10/etcd-v3.3.10-linux-amd64.tar.gz"
+
+2. Estrai e sposta etcd su /usr/local/bin
+	Chmod +x etcd
+	Sudo mv etcd /usr/local/bin/etcd
+	
+3. Creare le directory per i servizi e poi copiare i certificati (lo stesso di kubeapiserver)
+	Sudo mkdir -p /etc/etcd /var/lib/etcdcopiare i certificati kubernetes.pem kubernetes-key.pem e ca.pem dentro /etc/etcd
+	
+4. Creare il file di systemd per startare il servizio etcd
+	ETCD_NAME=`hostname -s`
+	IP=`nslookup $(hostname -s) | awk '/^Address: / { print $2 }'`
+	
+	 etcd.service
+	
+	[Unit]
+	Description=etcd
+	Documentation=https://github.com/coreos
+	
+	[Service]
+	ExecStart=/usr/local/bin/etcd \\
+	  --name master \\
+	  --cert-file=/etc/etcd/kubernetes.pem \\
+	  --key-file=/etc/etcd/kubernetes-key.pem \\
+	  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+	  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+	  --trusted-ca-file=/etc/etcd/ca.pem \\
+	  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+	  --peer-client-cert-auth \\
+	  --client-cert-auth \\
+	  --initial-advertise-peer-urls https://${IP}:2380 \\
+	  --listen-peer-urls https://${IP}:2380 \\
+	  --listen-client-urls https://${IP}:2379,http://127.0.0.1:2379 \\
+	  --advertise-client-urls https://${IP}:2379 \\
+	  --initial-cluster-token etcd-cluster-0 \\
+	  --initial-cluster master=https://172.29.21.10:2380 \\
+	  --initial-cluster-state new \\
+	  --data-dir=/var/lib/etcd
+	Restart=on-failure
+	RestartSec=5
+	
+	[Install]
+	WantedBy=multi-user.target
+	
+	5. Abilita e starta il servizio
+	Sudo mv etcd.service /etc/systemd/system
+	Sudo systemctl daemon-reload
+	Sudo systemctl enable etcd
+	Sudo systemctl start etcd
+	
+	6. Controlla che il serivizio funzioni:
+	ETCDCTL_API=3 etcdctl member list
+	
+	7. SECRET DATA ENCRYPTION
+	Kubernetes supports data encryption at rest to securely store data in the etcd k/v database.
+	First, we generate a random key, base64 encoded:
+	
+	ENCRYPTION_KEY=`head -c 32 /dev/urandom | base64`
+	
+	KUBERNETES MANIFEST FILE: encryption-config.yaml
+	kind: EncryptionConfig
+	apiVersion: v1
+	resources:
+	  - resources:
+	      - secrets
+	    providers:
+	      - aescbc:
+	          keys:
+	            - name: key
+	              secret: ${ENCRYPTION_KEY}
+	      - identity: {}
