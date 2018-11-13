@@ -13,7 +13,7 @@ Config.json is the CA json configuration file and must have 8760 h expiry, set t
 Csr.json (ca request). 
 CONFIG
 {
-	"signing": {
+"signing": {
     "default": {
       "expiry": "26280h"
     },
