@@ -1,39 +1,43 @@
-	1. Verifiche di connettività e bash-completion
-	2. Scaricare i binari di cfsssl e renderli eseguibili. Dopo di che spostarli su /usr/local/bin
-  curl -o cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
-	curl -o cfssljson https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
-  mv cfsssl cfsslijson /usr/local/bin
-	3. Creare il template per la CA e editare i valori:
-	cfssl print-defaults config > config.json
-	cfssl print-defaults csr > csr.json
-	Config.json è la configurazione della CA  e deve avere 8760 di expiry, modificare il profilo a kubernetes e come usage bisogna aggiungere client authentication
-	Csr.json è la request della ca. 
-	CONFIG
-	{
-	  "signing": {
-	    "default": {
-	      "expiry": "26280h"
-	    },
-	    "profiles": {
-	      "kubernetes": {
-	        "usages": ["signing", "key encipherment", "server auth", "client auth"], "expiry": "26280h"}
-	    }
-	  }
-	}
+1. verify connectivity and download bash-completion
+2. download bins for cfsssl . Move them to /usr/local/bin
+curl -o cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
+curl -o cfssljson https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
+mv cfsssl cfsslijson /usr/local/bin
+
+3. generate CA templates from default config:
+cfssl print-defaults config > config.json
+cfssl print-defaults csr > csr.json
+
+Config.json is the CA json configuration file and must have 8760 h expiry, set the profile to kubernetes and add client authentication usage.
+
+Csr.json (ca request). 
+CONFIG
+{
+	"signing": {
+    "default": {
+      "expiry": "26280h"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"], "expiry": "26280h"}
+    }
+  }
+}
 	
-  CA CSR
-	{
-	  "CN": "Kubernetes",
-	  "key": {
-	    "algo": "rsa",
-	    "size": 2048
-	  },
-	  "names": [
-	    {
-	      "C": "IT",
-	      "L": "Italy"
-	   }
-	  ]
-	}
-	4. Creare il ca.pem e cakey.pem con
-	cfssl gencert -initca ca-csr.json | cfssljson -bare ca
+CA CSR
+{
+  "CN": "Kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "IT",
+      "L": "Italy"
+   }
+  ]
+}
+
+4. ca.pem and ca-key.pem generation
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca
